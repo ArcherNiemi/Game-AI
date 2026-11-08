@@ -1,0 +1,14 @@
+body {
+    font-family: Arial, sans-serif;
+    background: #747474;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 97vh;
+}
+
+canvas {
+    background: white;
+    border: 2px solid #333;
+    border-radius: 8px;
+}
