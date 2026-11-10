@@ -1,10 +1,51 @@
 const canvas = document.getElementById("canvas");
 const ctx = canvas.getContext("2d");
 
-const SIMULATION_SIZE = 4;
+const SIMULATION_SIZE = 128;
 const CHANGE_RATE = 0.05;
+const SIMULATIONS = 40000;
 
-class TickTacToe{
+class TicTacToeRecorder{
+    static timeBetweenMoves = 500;
+    constructor(boards = [],size = TicTacToe.defaultSize,pos = TicTacToe.defaultPos){
+        this.boards = boards;
+        this.size = size;
+        this.pos = pos;
+    }
+
+    record(ticTacToe){
+        this.boards.push(structuredClone(ticTacToe.board));
+    }
+
+    watch(){
+        const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+        async function timedLoop(boards) {
+            for (let i = 0; i < boards.length; i++) {
+                let ticTacToe = new TicTacToe(boards[i]);
+                ticTacToe.draw();
+                
+                await sleep(TicTacToeRecorder.timeBetweenMoves); 
+            }
+        }
+
+        timedLoop(this.boards);
+    }
+
+    watchMatch(neuralNetwork1, neuralNetwork2){
+        let ticTacToe = new TicTacToe();
+        while(ticTacToe.checkWinner() === 0 && !ticTacToe.isDraw()){
+            neuralNetwork1.takeTicTacToeSpot(1,ticTacToe);
+            this.record(ticTacToe);
+            neuralNetwork2.takeTicTacToeSpot(-1,ticTacToe);
+            this.record(ticTacToe);
+        }
+        this.watch();
+    }
+
+}
+
+class TicTacToe{
     static borderColor = "#000";
     static circleColor = "#0000ff";
     static crossColor = "#ff0000";
@@ -14,7 +55,7 @@ class TickTacToe{
     static defaultBoard = [[0,0,0],[0,0,0],[0,0,0]];
     static defaultPos = [0,0];
 
-    constructor(board = TickTacToe.defaultBoard.map(row => [...row]),size = TickTacToe.defaultSize,pos = TickTacToe.defaultPos){
+    constructor(board = TicTacToe.defaultBoard.map(row => [...row]),size = TicTacToe.defaultSize,pos = TicTacToe.defaultPos){
         this.board = board;
         this.size = size;
         this.pos = pos;
@@ -147,8 +188,8 @@ class TickTacToe{
         ctx.clearRect(x, y, this.size, this.size);
 
         // Draw the board grid
-        ctx.strokeStyle = TickTacToe.borderColor;
-        ctx.lineWidth = TickTacToe.borderSize;
+        ctx.strokeStyle = TicTacToe.borderColor;
+        ctx.lineWidth = TicTacToe.borderSize;
 
         ctx.beginPath();
 
@@ -182,7 +223,7 @@ class TickTacToe{
 
                 if(value === -1){
                     // Draw circle
-                    ctx.strokeStyle = TickTacToe.circleColor;
+                    ctx.strokeStyle = TicTacToe.circleColor;
                     ctx.beginPath();
                     ctx.arc(
                         centerX,
@@ -195,7 +236,7 @@ class TickTacToe{
                 }
                 else if(value === 1){
                     // Draw cross
-                    ctx.strokeStyle = TickTacToe.crossColor;
+                    ctx.strokeStyle = TicTacToe.crossColor;
                     ctx.beginPath();
 
                     ctx.moveTo(centerX - padding, centerY - padding);
@@ -330,23 +371,22 @@ class NeuralNetwork{
                 networks.splice(networks.indexOf(loser), 1);
             }
         }
-        return networks;
+        return networks[0];
     }
 
     playMatch(neuralNetwork1, neuralNetwork2){
-        let tickTacToe = new TickTacToe();
-        while(tickTacToe.checkWinner() === 0 && !tickTacToe.isDraw()){
-            neuralNetwork1.takeTickTacToeSpot(1,tickTacToe);
-            neuralNetwork2.takeTickTacToeSpot(-1,tickTacToe);
+        let ticTacToe = new TicTacToe();
+        while(ticTacToe.checkWinner() === 0 && !ticTacToe.isDraw()){
+            neuralNetwork1.takeTicTacToeSpot(1,ticTacToe);
+            neuralNetwork2.takeTicTacToeSpot(-1,ticTacToe);
         }
-        let winner1 = tickTacToe.checkWinner();
-        tickTacToe.clear();
-        while(tickTacToe.checkWinner() === 0 && !tickTacToe.isDraw()){
-            neuralNetwork2.takeTickTacToeSpot(1,tickTacToe);
-            neuralNetwork1.takeTickTacToeSpot(-1,tickTacToe);
+        let winner1 = ticTacToe.checkWinner();
+        ticTacToe.clear();
+        while(ticTacToe.checkWinner() === 0 && !ticTacToe.isDraw()){
+            neuralNetwork2.takeTicTacToeSpot(1,ticTacToe);
+            neuralNetwork1.takeTicTacToeSpot(-1,ticTacToe);
         }
-        tickTacToe.draw();
-        let winner2 = -tickTacToe.checkWinner();
+        let winner2 = -ticTacToe.checkWinner();
         let finalWinner = winner1 + winner2;
         if(finalWinner < 0){
             return neuralNetwork1;
@@ -355,15 +395,15 @@ class NeuralNetwork{
         }
     }
 
-    takeTickTacToeSpot(side,tickTacToe){
-        let outputs = this.calculateOutput(tickTacToe.expandBoard(side));
+    takeTicTacToeSpot(side,ticTacToe){
+        let outputs = this.calculateOutput(ticTacToe.expandBoard(side));
         const sorted = outputs.toSorted((a, b) => b - a);
         for(var i  = 0; i < outputs.length; i++){
             let outputIndex = outputs.indexOf(sorted[i]);
             let row = Math.floor(outputIndex / 3);
             let col = outputIndex % 3;
-            if(tickTacToe.validSpot(row,col)){
-                tickTacToe.takeSpot(row,col,side);
+            if(ticTacToe.validSpot(row,col)){
+                ticTacToe.takeSpot(row,col,side);
                 break;
             }
         }
@@ -381,5 +421,41 @@ function getRandomInt(min, max) {
 }
 
 let NN = new NeuralNetwork([9,3,3,3,9]);
-console.log(NN);
-console.log(NN.tournament());
+
+for(let i = 0; i < SIMULATIONS; i++){
+    NN = NN.tournament();
+    if(i % 100 === 0){
+        console.log(i);
+    }
+}
+
+function watchMatch(){
+    let recorder = new TicTacToeRecorder();
+    recorder.watchMatch(NN,NN);
+}
+
+function waitForClick(elementId) {
+    return new Promise((resolve) => {
+        const element = document.getElementById(elementId);
+        
+        // The promise resolves ONLY when the click event happens
+        element.addEventListener('click', function onClick() {
+            // Remove the listener so it doesn't pile up if called repeatedly
+            element.removeEventListener('click', onClick);
+            resolve(); 
+        });
+    });
+}
+
+async function playMatch(){
+    let ticTacToe = new TicTacToe();
+    ticTacToe.draw();
+    let count = 0;
+    while(ticTacToe.checkWinner() === 0 && !ticTacToe.isDraw() && count < 10){
+        await waitForClick("turnButton");
+        ticTacToe.takeSpot(document.getElementById("row").value,document.getElementById("col").value,1);
+        NN.takeTicTacToeSpot(-1,ticTacToe);
+        ticTacToe.draw();
+        count++;
+    }
+}
